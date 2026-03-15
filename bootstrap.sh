@@ -4,7 +4,9 @@
 #      酒Ann × OpenClaw_mfg 製造業外貿班
 #
 #  在 VM 內執行（需要 root）：
-#    curl -fsSL https://raw.githubusercontent.com/Joanna8521/openclaw-install_mfg/main/bootstrap.sh | sudo bash
+#    curl -fsSL https://raw.githubusercontent.com/Joanna8521/openclaw-install_mfg/main/bootstrap.sh -o bootstrap.sh && chmod +x bootstrap.sh && sudo ./bootstrap.sh
+#
+#  ⚠️  不可用 curl | sudo bash 執行，否則互動式輸入（Bot Token / API Key / 配對碼）會無法輸入
 #
 #  自動完成：
 #    1. 系統套件更新 + Node.js v22 安裝
