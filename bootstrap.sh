@@ -38,6 +38,7 @@ fi
 # ── 變數 ────────────────────────────────────────────────────────────────────
 INSTALL_DIR="/opt/openclaw"
 SKILLS_REPO="https://github.com/Joanna8521/openclaw_mfg.git"
+SKILLS_PAT=""  # 由學員輸入
 OPENCLAW_REPO="https://github.com/openclaw/openclaw.git"
 SERVICE_USER="root"   # 必須是 root，configs 在 /root/.openclaw/
 SERVICE_FILE="/etc/systemd/system/openclaw.service"
@@ -125,22 +126,40 @@ section "STEP 6｜安裝製造業班 Skills"
 SKILLS_DIR="/root/.openclaw/skills"
 mkdir -p "$SKILLS_DIR"
 
-print_info "從 GitHub 下載製造業班 Skills..."
-TMP_SKILLS="/tmp/openclaw_mfg_skills"
-rm -rf "$TMP_SKILLS"
+# ── 請學員輸入課程存取碼（Fine-grained PAT）────────────────────────────────
+echo ""
+echo -e "  ${BOLD}請輸入課程存取碼${RESET}（老師提供，格式：github_pat_...）"
+echo -e "  ${YELLOW}輸入時畫面不會顯示字元，這是正常的${RESET}"
+echo ""
+read -r -s -p "  課程存取碼：" SKILLS_PAT
+echo ""
 
-if git clone --depth 1 --quiet "$SKILLS_REPO" "$TMP_SKILLS" 2>/dev/null; then
-  # 複製 skills 目錄
-  if [ -d "$TMP_SKILLS/skills" ]; then
-    cp -r "$TMP_SKILLS/skills/"* "$SKILLS_DIR/" 2>/dev/null || true
-    print_ok "製造業班 Skills 安裝完成（$(find "$SKILLS_DIR" -name 'SKILL.md' | wc -l) 個技能）"
-  else
-    print_warn "Skills 目錄結構不符預期，請手動確認 $SKILLS_REPO"
-  fi
-  rm -rf "$TMP_SKILLS"
+if [ -z "$SKILLS_PAT" ]; then
+  print_warn "未輸入課程存取碼，跳過 Skills 安裝"
+  print_warn "之後可手動執行：git clone https://<存取碼>@github.com/Joanna8521/openclaw_mfg.git /tmp/skills_tmp"
 else
-  print_warn "Skills repo 尚未建立（$SKILLS_REPO），稍後可手動安裝"
-  print_warn "先跑完部署，之後 git clone 到 $SKILLS_DIR 即可"
+  print_info "從 GitHub 下載製造業班 Skills..."
+  TMP_SKILLS="/tmp/openclaw_mfg_skills"
+  rm -rf "$TMP_SKILLS"
+
+  # 把 PAT 嵌入 clone URL
+  CLONE_URL="https://${SKILLS_PAT}@github.com/Joanna8521/openclaw_mfg.git"
+
+  if git clone --depth 1 --quiet "$CLONE_URL" "$TMP_SKILLS" 2>/dev/null; then
+    if [ -d "$TMP_SKILLS/skills" ]; then
+      cp -r "$TMP_SKILLS/skills/"* "$SKILLS_DIR/" 2>/dev/null || true
+      SKILL_COUNT=$(find "$SKILLS_DIR" -name 'SKILL.md' | wc -l)
+      print_ok "製造業班 Skills 安裝完成（${SKILL_COUNT} 個技能）"
+    else
+      print_warn "Skills 目錄結構不符預期，請確認 repo 內有 skills/ 資料夾"
+    fi
+    # 清除含 PAT 的 clone 紀錄
+    rm -rf "$TMP_SKILLS"
+    git -C "$SKILLS_DIR" remote remove origin 2>/dev/null || true
+  else
+    print_err "存取碼錯誤或 repo 不存在，Skills 安裝失敗"
+    print_warn "請確認存取碼是否正確，之後可重新執行此腳本"
+  fi
 fi
 
 # 安裝共用基礎 C01-C10
