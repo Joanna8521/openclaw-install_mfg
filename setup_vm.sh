@@ -50,7 +50,7 @@ echo "  4.  開放 Port 22（SSH）和 Port 80（LINE Webhook）
 echo ""
 echo "  預計執行時間：約 5 分鐘"
 echo ""
-read -r -p "  按 Enter 開始 ..." < /dev/tty
+read -r -p "  按 Enter 開始 ..."
 
 # ── 確認 OCI 環境 ────────────────────────────────────────────────────────────
 section "確認 OCI 環境"
@@ -143,7 +143,7 @@ echo ""
 echo "  課程存取碼格式：github_pat_..."
 echo "  （老師提供，輸入後按 Enter）"
 echo ""
-read -r -p "  課程存取碼：" SKILLS_PAT < /dev/tty
+read -r -p "  課程存取碼：" SKILLS_PAT
 echo ""
 if [ -z "$SKILLS_PAT" ]; then
   print_warn "未輸入存取碼，跳過（稍後可手動安裝 Skills）"
@@ -163,7 +163,7 @@ echo "  SSH 金鑰：$SSH_KEY_PATH"
 echo ""
 print_warn "免費方案每個帳號只有 4 OCPU 和 24GB 配額，一台 VM 就用完了"
 echo ""
-read -r -p "  確認建立？按 Enter 繼續（Ctrl+C 中止）..." < /dev/tty
+read -r -p "  確認建立？按 Enter 繼續（Ctrl+C 中止）..."
 
 # ── 建立 VM ──────────────────────────────────────────────────────────────────
 section "建立 VM（約 2-3 分鐘）"
