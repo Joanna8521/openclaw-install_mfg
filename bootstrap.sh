@@ -328,12 +328,30 @@ case "$BOT_CHOICE" in
       esac
 
       systemctl restart openclaw
-      sleep 3
+      sleep 5
       systemctl is-active --quiet openclaw && print_ok "龍蝦重啟完成" || print_warn "重啟失敗，請執行 sudo systemctl restart openclaw"
 
+      # ── 引導 Telegram Pairing ──────────────────────────────────────────────
       echo ""
-      echo -e "  ${BOLD}${GREEN}🎉 設定完成！${RESET}"
-      echo -e "  到 Telegram 搜尋你的 Bot，發送 ${CYAN}/help${RESET} 測試"
+      echo -e "  ${BOLD}最後一步：配對你的 Telegram 帳號${RESET}"
+      echo ""
+      echo "  1. 打開 Telegram，搜尋你剛建立的 Bot"
+      echo "  2. 對 Bot 發送任何訊息（例如：你好）"
+      echo "  3. Bot 會回覆一段配對碼，格式如：Y9L7C7RG"
+      echo ""
+      read -r -p "  請貼上配對碼（8位英數字）：" PAIRING_CODE
+      echo ""
+
+      if [ -z "$PAIRING_CODE" ]; then
+        print_warn "未輸入配對碼，請之後手動執行："
+        echo -e "  ${CYAN}sudo node $INSTALL_DIR/openclaw.mjs pairing approve telegram 配對碼${RESET}"
+      else
+        node "$INSTALL_DIR/openclaw.mjs" pairing approve telegram "$PAIRING_CODE" 2>/dev/null           && print_ok "配對成功！"           || print_warn "配對失敗，請確認配對碼是否正確"
+      fi
+
+      echo ""
+      echo -e "  ${BOLD}${GREEN}🎉 全部完成！${RESET}"
+      echo -e "  回到 Telegram 發 ${CYAN}/help${RESET} 開始使用龍蝦 🦞"
     fi
     ;;
 
@@ -391,7 +409,16 @@ case "$BOT_CHOICE" in
       echo "      Messaging API → Auto-reply messages → Disabled"
       echo ""
       echo -e "  ${BOLD}${GREEN}🎉 設定完成！${RESET}"
-      echo "  把 Webhook URL 填到 LINE Developers 後，發訊息給 Bot 測試"
+      echo ""
+      echo "  接下來："
+      echo "  1. 把上面的 Webhook URL 填到 LINE Developers Console"
+      echo "  2. 對 Bot 發任何訊息，Bot 會回覆配對碼"
+      echo "  3. 在這裡執行：sudo node $INSTALL_DIR/openclaw.mjs pairing approve line 配對碼"
+      echo ""
+      read -r -p "  請貼上配對碼（收到後再貼）：" LINE_PAIRING
+      if [ -n "$LINE_PAIRING" ]; then
+        node "$INSTALL_DIR/openclaw.mjs" pairing approve line "$LINE_PAIRING" 2>/dev/null           && print_ok "LINE 配對成功！"           || print_warn "配對失敗，請確認配對碼"
+      fi
     fi
     ;;
 
