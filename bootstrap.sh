@@ -131,7 +131,7 @@ echo ""
 echo -e "  ${BOLD}請輸入課程存取碼${RESET}（老師提供，格式：github_pat_...）"
 echo -e "  ${YELLOW}輸入時畫面不會顯示字元，這是正常的${RESET}"
 echo ""
-read -r -s -p "  課程存取碼：" SKILLS_PAT
+read -r -s -p "  課程存取碼：" SKILLS_PAT < /dev/tty
 echo ""
 
 if [ -z "$SKILLS_PAT" ]; then
