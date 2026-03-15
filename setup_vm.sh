@@ -45,7 +45,8 @@ echo "  1.  產生 SSH 金鑰（登入 VM 用）"
 echo "  2.  建立免費 VM（4 OCPU / 24GB RAM / Ubuntu 22.04 ARM）"
 echo "  3.  開放 Port 80（LINE Webhook 需要）"
 echo "  4.  開放 Port 22（SSH）和 Port 80（LINE Webhook）
-  5.  輸出完整的安裝指令，直接複製貼上就好"
+  5.  把課程存取碼安全寫入 VM
+  6.  輸出完整的安裝指令，直接複製貼上就好"
 echo ""
 echo "  預計執行時間：約 5 分鐘"
 echo ""
@@ -135,6 +136,20 @@ else
 fi
 SSH_PUB_KEY=$(cat "${SSH_KEY_PATH}.pub")
 print_ok "公鑰已備妥"
+
+# ── 輸入課程存取碼 ────────────────────────────────────────────────────────────
+section "輸入課程存取碼（Skills 用）"
+echo ""
+echo "  課程存取碼格式：github_pat_..."
+echo "  （老師提供，輸入後按 Enter）"
+echo ""
+read -r -p "  課程存取碼：" SKILLS_PAT
+echo ""
+if [ -z "$SKILLS_PAT" ]; then
+  print_warn "未輸入存取碼，跳過（稍後可手動安裝 Skills）"
+else
+  print_ok "存取碼已記錄，VM 建立後自動寫入"
+fi
 
 # ── 確認建立資訊 ─────────────────────────────────────────────────────────────
 section "確認 VM 建立資訊"
@@ -241,6 +256,19 @@ echo "  輸入：openclaw_mfg_key.pem"
 echo ""
 cp "$SSH_KEY_PATH" "$HOME/openclaw_mfg_key.pem" 2>/dev/null || true
 print_ok "已複製到 ~/openclaw_mfg_key.pem，可從 Cloud Shell 下載"
+
+# ── 把 PAT 寫入 VM ───────────────────────────────────────────────────────────
+if [ -n "$SKILLS_PAT" ] && [ -n "$PUBLIC_IP" ] && [ "$PUBLIC_IP" != "<VM 的 Public IP>" ]; then
+  section "把課程存取碼寫入 VM"
+  print_info "等待 VM SSH 服務就緒（約 20 秒）..."
+  sleep 20
+  ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+    ubuntu@"$PUBLIC_IP" \
+    "sudo mkdir -p /root/.openclaw && printf '%s' '$SKILLS_PAT' | sudo tee /root/.openclaw/skills_pat > /dev/null && sudo chmod 600 /root/.openclaw/skills_pat" \
+    2>/dev/null \
+    && print_ok "課程存取碼已安全寫入 VM（/root/.openclaw/skills_pat）" \
+    || print_warn "寫入失敗，bootstrap.sh 執行時請手動補安裝 Skills"
+fi
 
 # ── 完成！輸出下一步 ──────────────────────────────────────────────────────────
 section "🎉 VM 建立完成！下一步"

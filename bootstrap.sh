@@ -126,13 +126,16 @@ section "STEP 6｜安裝製造業班 Skills"
 SKILLS_DIR="/root/.openclaw/skills"
 mkdir -p "$SKILLS_DIR"
 
-# ── 請學員輸入課程存取碼（Fine-grained PAT）────────────────────────────────
-echo ""
-echo -e "  ${BOLD}請輸入課程存取碼${RESET}（老師提供，格式：github_pat_...）"
-echo -e "  ${YELLOW}輸入時畫面不會顯示字元，這是正常的${RESET}"
-echo ""
-read -r -s -p "  課程存取碼：" SKILLS_PAT < /dev/tty
-echo ""
+# ── 從 setup_vm.sh 預存的檔案讀取 PAT ───────────────────────────────────────
+PAT_FILE="/root/.openclaw/skills_pat"
+if [ -f "$PAT_FILE" ]; then
+  SKILLS_PAT=$(cat "$PAT_FILE")
+  print_ok "課程存取碼已從設定檔讀取"
+else
+  print_warn "找不到課程存取碼設定檔（$PAT_FILE）"
+  print_warn "Skills 安裝將跳過，完成部署後請聯絡老師補安裝"
+  SKILLS_PAT=""
+fi
 
 if [ -z "$SKILLS_PAT" ]; then
   print_warn "未輸入課程存取碼，跳過 Skills 安裝"
@@ -263,31 +266,136 @@ PUBLIC_IP=$(curl -s --max-time 5 http://checkip.amazonaws.com 2>/dev/null \
   || echo "無法取得")
 print_ok "VM Public IP：$PUBLIC_IP"
 
-# ── 完成！輸出下一步指令 ──────────────────────────────────────────────────────
-section "🎉 安裝完成！下一步：設定 Bot"
+# ── STEP 10：引導設定 Bot ────────────────────────────────────────────────────
+section "STEP 10｜設定通知 Bot"
 echo ""
-echo -e "  ${BOLD}設定 Telegram Bot（推薦）${RESET}"
-echo -e "  ${CYAN}sudo node $INSTALL_DIR/openclaw.mjs config set channels.telegram.botToken \"你的BotToken\"${RESET}"
-echo -e "  ${CYAN}sudo systemctl restart openclaw${RESET}"
+echo -e "  ${BOLD}要現在設定 Bot 嗎？${RESET}"
+echo "  1) Telegram Bot（推薦，設定較簡單）"
+echo "  2) LINE Bot"
+echo "  3) 跳過，稍後手動設定"
 echo ""
-echo -e "  ${BOLD}設定 LINE Bot${RESET}"
-echo -e "  ${CYAN}sudo node $INSTALL_DIR/openclaw.mjs config set channels.line.channelSecret \"你的ChannelSecret\"${RESET}"
-echo -e "  ${CYAN}sudo node $INSTALL_DIR/openclaw.mjs config set channels.line.accessToken \"你的AccessToken\"${RESET}"
-echo -e "  ${CYAN}sudo systemctl restart openclaw${RESET}"
-echo ""
-echo -e "  ${BOLD}LINE Webhook URL（填到 LINE Developers 控制台）${RESET}"
-echo -e "  ${CYAN}http://$PUBLIC_IP/line/webhook${RESET}"
-echo ""
-echo -e "  ${BOLD}設定 AI 提供商（擇一）${RESET}"
-echo -e "  ${CYAN}sudo node $INSTALL_DIR/openclaw.mjs config set providers.claude.apiKey \"你的ClaudeApiKey\"${RESET}"
-echo -e "  ${CYAN}sudo node $INSTALL_DIR/openclaw.mjs config set providers.openai.apiKey \"你的OpenAiKey\"${RESET}"
-echo ""
-echo -e "  ${BOLD}確認服務狀態${RESET}"
-echo -e "  ${CYAN}sudo systemctl status openclaw${RESET}"
-echo -e "  ${CYAN}sudo journalctl -u openclaw -f${RESET}"
+read -r -p "  請輸入選項（1/2/3）：" BOT_CHOICE
+
+case "$BOT_CHOICE" in
+  1)
+    # ── Telegram 設定引導 ────────────────────────────────────────────────────
+    section "設定 Telegram Bot"
+    echo ""
+    echo "  步驟一：到 Telegram 搜尋 @BotFather"
+    echo "  步驟二：發送 /newbot，依指示建立 Bot"
+    echo "  步驟三：取得 Bot Token（格式：1234567890:ABCdef...）"
+    echo ""
+    read -r -p "  請貼上 Bot Token：" TG_TOKEN
+    echo ""
+
+    if [ -z "$TG_TOKEN" ]; then
+      print_warn "未輸入 Token，跳過"
+    else
+      node "$INSTALL_DIR/openclaw.mjs" config set channels.telegram.botToken "$TG_TOKEN" 2>/dev/null         && print_ok "Telegram Bot Token 設定完成"         || print_warn "設定失敗，請手動執行：sudo node $INSTALL_DIR/openclaw.mjs config set channels.telegram.botToken "你的Token""
+
+      # ── 設定 AI 提供商 ────────────────────────────────────────────────────
+      echo ""
+      echo -e "  ${BOLD}設定 AI 提供商${RESET}"
+      echo "  1) Claude（Anthropic）"
+      echo "  2) OpenAI（GPT）"
+      echo "  3) 跳過"
+      echo ""
+      read -r -p "  請輸入選項（1/2/3）：" AI_CHOICE
+
+      case "$AI_CHOICE" in
+        1)
+          read -r -p "  請貼上 Claude API Key（sk-ant-...）：" CLAUDE_KEY
+          [ -n "$CLAUDE_KEY" ] && node "$INSTALL_DIR/openclaw.mjs" config set providers.claude.apiKey "$CLAUDE_KEY" 2>/dev/null             && print_ok "Claude API Key 設定完成"
+          ;;
+        2)
+          read -r -p "  請貼上 OpenAI API Key（sk-...）：" OPENAI_KEY
+          [ -n "$OPENAI_KEY" ] && node "$INSTALL_DIR/openclaw.mjs" config set providers.openai.apiKey "$OPENAI_KEY" 2>/dev/null             && print_ok "OpenAI API Key 設定完成"
+          ;;
+        *)
+          print_warn "跳過 AI 設定，稍後手動設定"
+          ;;
+      esac
+
+      systemctl restart openclaw
+      sleep 3
+      systemctl is-active --quiet openclaw && print_ok "龍蝦重啟完成" || print_warn "重啟失敗，請執行 sudo systemctl restart openclaw"
+
+      echo ""
+      echo -e "  ${BOLD}${GREEN}🎉 設定完成！${RESET}"
+      echo -e "  到 Telegram 搜尋你的 Bot，發送 ${CYAN}/help${RESET} 測試"
+    fi
+    ;;
+
+  2)
+    # ── LINE 設定引導 ────────────────────────────────────────────────────────
+    section "設定 LINE Bot"
+    echo ""
+    echo "  步驟一：登入 LINE Developers Console（developers.line.biz）"
+    echo "  步驟二：建立 Messaging API Channel"
+    echo "  步驟三：取得 Channel Secret 和 Channel Access Token"
+    echo ""
+    read -r -p "  請貼上 Channel Secret：" LINE_SECRET
+    read -r -p "  請貼上 Channel Access Token：" LINE_TOKEN
+    echo ""
+
+    if [ -z "$LINE_SECRET" ] || [ -z "$LINE_TOKEN" ]; then
+      print_warn "未完整輸入，跳過"
+    else
+      node "$INSTALL_DIR/openclaw.mjs" config set channels.line.channelSecret "$LINE_SECRET" 2>/dev/null
+      node "$INSTALL_DIR/openclaw.mjs" config set channels.line.accessToken "$LINE_TOKEN" 2>/dev/null
+      print_ok "LINE Bot 設定完成"
+
+      # ── 設定 AI 提供商 ────────────────────────────────────────────────────
+      echo ""
+      echo -e "  ${BOLD}設定 AI 提供商${RESET}"
+      echo "  1) Claude（Anthropic）"
+      echo "  2) OpenAI（GPT）"
+      echo "  3) 跳過"
+      echo ""
+      read -r -p "  請輸入選項（1/2/3）：" AI_CHOICE
+
+      case "$AI_CHOICE" in
+        1)
+          read -r -p "  請貼上 Claude API Key（sk-ant-...）：" CLAUDE_KEY
+          [ -n "$CLAUDE_KEY" ] && node "$INSTALL_DIR/openclaw.mjs" config set providers.claude.apiKey "$CLAUDE_KEY" 2>/dev/null             && print_ok "Claude API Key 設定完成"
+          ;;
+        2)
+          read -r -p "  請貼上 OpenAI API Key（sk-...）：" OPENAI_KEY
+          [ -n "$OPENAI_KEY" ] && node "$INSTALL_DIR/openclaw.mjs" config set providers.openai.apiKey "$OPENAI_KEY" 2>/dev/null             && print_ok "OpenAI API Key 設定完成"
+          ;;
+        *)
+          print_warn "跳過 AI 設定"
+          ;;
+      esac
+
+      systemctl restart openclaw
+      sleep 3
+      systemctl is-active --quiet openclaw && print_ok "龍蝦重啟完成" || print_warn "重啟失敗，請執行 sudo systemctl restart openclaw"
+
+      echo ""
+      echo -e "  ${BOLD}LINE Webhook URL（填到 LINE Developers 控制台）${RESET}"
+      echo -e "  ${CYAN}http://$PUBLIC_IP/line/webhook${RESET}"
+      echo ""
+      echo "  ⚠️  記得在 LINE Developers 關閉自動回覆訊息："
+      echo "      Messaging API → Auto-reply messages → Disabled"
+      echo ""
+      echo -e "  ${BOLD}${GREEN}🎉 設定完成！${RESET}"
+      echo "  把 Webhook URL 填到 LINE Developers 後，發訊息給 Bot 測試"
+    fi
+    ;;
+
+  *)
+    print_warn "跳過 Bot 設定，稍後手動執行："
+    echo ""
+    echo -e "  ${CYAN}sudo node $INSTALL_DIR/openclaw.mjs config set channels.telegram.botToken "你的Token"${RESET}"
+    echo -e "  ${CYAN}sudo node $INSTALL_DIR/openclaw.mjs config set channels.line.channelSecret "你的Secret"${RESET}"
+    echo -e "  ${CYAN}sudo node $INSTALL_DIR/openclaw.mjs config set channels.line.accessToken "你的Token"${RESET}"
+    echo -e "  ${CYAN}sudo systemctl restart openclaw${RESET}"
+    ;;
+esac
+
 echo ""
 echo -e "${BLUE}════════════════════════════════════════════${RESET}"
 echo -e "  🦞 OpenClaw 製造業外貿班 部署完成！"
-echo -e "  設定完 Bot Token 後，LINE 或 Telegram 發 /help 測試"
 echo -e "${BLUE}════════════════════════════════════════════${RESET}"
 echo ""
