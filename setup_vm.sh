@@ -10,7 +10,8 @@
 #    1. 產生 SSH 金鑰
 #    2. 取得帳號資訊（Compartment、VCN、Subnet、Image）
 #    3. 建立 VM.Standard.A1.Flex（4 OCPU / 24GB / Ubuntu 22.04 ARM）
-#    4. 開放 Security List Port 80（LINE Webhook 用）
+#    4. 開放 Security List Port 22（SSH）和 Port 80（LINE Webhook）
+#    5. 輸出完整 SSH 指令 + 下一步提示
 #    5. 輸出完整 SSH 指令 + 下一步提示
 # =============================================================================
 set -euo pipefail
@@ -43,7 +44,8 @@ echo "  這個腳本會自動幫你完成："
 echo "  1.  產生 SSH 金鑰（登入 VM 用）"
 echo "  2.  建立免費 VM（4 OCPU / 24GB RAM / Ubuntu 22.04 ARM）"
 echo "  3.  開放 Port 80（LINE Webhook 需要）"
-echo "  4.  輸出完整的安裝指令，直接複製貼上就好"
+echo "  4.  開放 Port 22（SSH）和 Port 80（LINE Webhook）
+  5.  輸出完整的安裝指令，直接複製貼上就好"
 echo ""
 echo "  預計執行時間：約 5 分鐘"
 echo ""
@@ -199,36 +201,36 @@ if [ -z "$PUBLIC_IP" ] || [ "$PUBLIC_IP" = "null" ]; then
 fi
 print_ok "Public IP：$PUBLIC_IP"
 
-# ── 開放 Port 80 ─────────────────────────────────────────────────────────────
-section "開放 Port 80（LINE Webhook）"
-EXISTING_RULES=$(oci network security-list get \
+# ── 開放 Port 22 + Port 80 ───────────────────────────────────────────────────
+section "開放 Port 22（SSH）和 Port 80（LINE Webhook）"
+CURRENT_RULES=$(oci network security-list get \
   --security-list-id "$SL_ID" \
-  --query 'data."ingress-security-rules"' \
-  --raw-output 2>/dev/null)
+  --query 'data."ingress-security-rules"' 2>/dev/null)
 
-if echo "$EXISTING_RULES" | grep -q '"destination-port-max": 80'; then
-  print_ok "Port 80 已經開放，跳過"
-else
-  print_info "新增 Port 80 Ingress Rule..."
-  CURRENT_RULES=$(oci network security-list get \
-    --security-list-id "$SL_ID" \
-    --query 'data."ingress-security-rules"' 2>/dev/null)
-  
-  NEW_RULE='{"is-stateless": false, "protocol": "6", "source": "0.0.0.0/0", "source-type": "CIDR_BLOCK", "tcp-options": {"destination-port-range": {"max": 80, "min": 80}}}'
-  MERGED_RULES=$(echo "$CURRENT_RULES" | python3 -c "
+MERGED_RULES=$(echo "$CURRENT_RULES" | python3 -c "
 import sys, json
 rules = json.load(sys.stdin)
-new = $NEW_RULE
-if not any(r.get('tcp-options',{}).get('destination-port-range',{}).get('min')==80 for r in rules):
-    rules.append(new)
+need = [
+    {"is-stateless": False, "protocol": "6", "source": "0.0.0.0/0", "source-type": "CIDR_BLOCK",
+     "tcp-options": {"destination-port-range": {"max": 22, "min": 22}}},
+    {"is-stateless": False, "protocol": "6", "source": "0.0.0.0/0", "source-type": "CIDR_BLOCK",
+     "tcp-options": {"destination-port-range": {"max": 80, "min": 80}}},
+]
+existing_ports = [r.get('tcp-options',{}).get('destination-port-range',{}).get('min') for r in rules]
+for rule in need:
+    port = rule['tcp-options']['destination-port-range']['min']
+    if port not in existing_ports:
+        rules.append(rule)
 print(json.dumps(rules))
-" 2>/dev/null || echo "[$NEW_RULE]")
-  
-  oci network security-list update \
-    --security-list-id "$SL_ID" \
-    --ingress-security-rules "$MERGED_RULES" \
-    --force 2>/dev/null && print_ok "Port 80 開放完成" || print_warn "Port 80 開放失敗，請手動在 Oracle Console 開放"
-fi
+" 2>/dev/null || echo "$CURRENT_RULES")
+
+oci network security-list update \
+  --security-list-id "$SL_ID" \
+  --ingress-security-rules "$MERGED_RULES" \
+  --force 2>/dev/null \
+  && print_ok "Port 22（SSH）開放完成" \
+  && print_ok "Port 80（LINE Webhook）開放完成" \
+  || print_warn "Port 開放失敗，請手動在 Oracle Console 新增 Port 22 和 Port 80"
 
 # ── 備份 SSH 私鑰提示 ─────────────────────────────────────────────────────────
 section "備份 SSH 私鑰"
